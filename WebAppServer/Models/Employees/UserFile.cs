@@ -10,6 +10,6 @@ namespace WebAppServer.Models.Employees
         public int Id { get; set; }
         public string SystemName { get; set; }
         public string DisplayName { get; set; }
-        public Employee Employee { get; set; }
+        //public Employee Employee { get; set; }
     }
 }

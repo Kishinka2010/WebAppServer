@@ -6,6 +6,7 @@ using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using WebAppServer.DbContexts;
+using WebAppServer.Models.DTO;
 using WebAppServer.Models.Users;
 using WebAppServer.Utils;
 
@@ -22,19 +23,13 @@ namespace WebAppServer.Controllers
             _context = new ApplicationContext();
         }
 
-        private List<User> _users = new List<User>
-        {
-            new User { Login = "admin@mail.ru", Password = "12345", Role = "admin"},
-            new User { Login = "user@mail.ru", Password="12345", Role = "user"},
-        };
-
         [HttpPost("login")]
-        public IActionResult Login(string username, string password)
+        public IActionResult Login([FromBody] RegisterRequestDto registerRequest)
         {
-            var identity = GetIdentity(username, password);
+            var identity = GetIdentity(registerRequest.Login, registerRequest.Password);
             if (identity == null)
             {
-                return BadRequest(new { errorText = "Invalid username or password!" });
+                return BadRequest(new { errorText = "Invalid login or password!" });
             }
             var now = DateTime.UtcNow;
 
@@ -50,29 +45,35 @@ namespace WebAppServer.Controllers
 
             var response = new
             {
-                acces_token = encodedJwt,
-                username = identity.Name
+                accesToken = encodedJwt,
+                username = identity.Name,
+                role = identity.Claims.FirstOrDefault(c => c.Type.Contains("role"))?.Value
             };
 
             return Ok(JsonConvert.SerializeObject(response));
         }
 
         [HttpPost("register")]
-        public IActionResult Register(string username, string password)
+        public IActionResult Register([FromBody] RegisterRequestDto registerRequest)
         {
+            var user = _context.Users.FirstOrDefault(u => u.Login == registerRequest.Login);
+            if (user != null)
+            {
+                return BadRequest("User with this login already exist");
+            }
             _context.Users.Add(new User
             {
-                Login = username,
-                Password = Utils.AuthUtils.HashPassword(password),
-                Role = "user"
+                Login = registerRequest.Login,
+                Password = AuthUtils.HashPassword(registerRequest.Password),
+                Role = "users"
             });
-            var id = _context.SaveChanges();
-            return Ok(id);
+            _context.SaveChanges();
+            return Ok();
         }
 
-        private ClaimsIdentity GetIdentity(string username, string password)
+        private ClaimsIdentity GetIdentity(string login, string password)
         {
-            var user = _context.Users.FirstOrDefault(u => u.Login == username);
+            var user = _context.Users.FirstOrDefault(u => u.Login == login);
             if (user == null || !AuthUtils.VerifyPassword(password, user.Password))
             {
                 return null;
